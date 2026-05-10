@@ -354,8 +354,8 @@ jobs:
       # ──────────────────────────────────────
       - name: 📝 ساخت/به‌روزرسانی Links.md
         run: |
-          REPO="${{ github.repository }}"
-          BRANCH="${GITHUB_REF_NAME}"
+          export REPO="${{ github.repository }}"
+          export BRANCH="${GITHUB_REF_NAME}"
           JSON_FILE="downloads/.download_results.json"
 
           if [ ! -f "$JSON_FILE" ]; then
@@ -363,7 +363,7 @@ jobs:
             exit 0
           fi
 
-          python3 << PYEOF
+          python3 << 'PYEOF'
           import json, os, urllib.parse
           from datetime import datetime, timezone, timedelta
 
@@ -382,17 +382,16 @@ jobs:
 
           for f in files:
               fname = os.path.basename(f["file"])
-              encoded = urllib.parse.quote(fname)
-              raw_url = f"https://github.com/{repo}/raw/{branch}/downloads/{encoded}"
-              # اگر فایل در زیرپوشه باشد (مثلاً downloads/Folder/file) باید مسیر را کامل گذاشت
               sub_path = f["file"]
+              # ساخت مسیر کامل برای URL خام
               if "/" in sub_path:
-                  # مسیر نسبی داخل downloads/ را encode می‌کنیم
                   parts = sub_path.split("/")
                   encoded_path = "/".join(urllib.parse.quote(p, safe='') for p in parts)
                   raw_url = f"https://github.com/{repo}/raw/{branch}/downloads/{encoded_path}"
+              else:
+                  encoded_fname = urllib.parse.quote(fname)
+                  raw_url = f"https://github.com/{repo}/raw/{branch}/downloads/{encoded_fname}"
 
-              # محاسبه حجم خوانا
               size = f["size"]
               if size >= 1048576:
                   size_str = f"{size/1048576:.1f}MB"
@@ -401,7 +400,6 @@ jobs:
               else:
                   size_str = f"{size}B"
 
-              # تشخیص آیکون
               ext = fname.rsplit(".", 1)[-1] if "." in fname else ""
               icon = "📥"
               if ext == "apk": icon = "📱"
@@ -409,21 +407,15 @@ jobs:
               elif ext in ("mp3", "m4a", "flac", "ogg"): icon = "🎵"
               elif ext == "zip" or ext.startswith("z"): icon = "🗜️"
 
-              # نام نمایشی: حذف پسوندهای split اضافی برای زیبایی (اختیاری)
               display = fname
-              # اگر فایل zip اصلی نبود و split داشت، نام اصلی را می‌توان ساده‌تر کرد (اما مهم نیست)
-
               new_entries.append(f"- {icon} [{display}]({raw_url}) `{size_str}`")
 
           new_content = "\n".join(new_entries) + "\n\n---\n\n"
 
-          # خواندن محتوای قبلی Links.md در صورت وجود
           old_content = ""
           if os.path.exists("Links.md"):
               with open("Links.md", "r") as f:
                   old = f.read()
-              # skip header line and blank lines? We'll keep old content after header removal
-              # اما ایده بهتر: old_content را از خط ۴ به بعد نگه داریم تا هدر قبلی تکرار نشود
               lines = old.splitlines()
               if len(lines) > 3 and lines[0].startswith("## 🔗"):
                   old_content = "\n".join(lines[3:]) + "\n"
